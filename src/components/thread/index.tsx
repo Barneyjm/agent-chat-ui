@@ -1,18 +1,17 @@
 import { v4 as uuidv4 } from "uuid";
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useStreamContext } from "@/providers/Stream";
 import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
-import { AssistantMessage, AssistantMessageLoading } from "./messages/ai";
+import { AssistantMessage, AssistantMessageLoading, SceneBanner, GameStatusBar, EnvironmentPanel, useLatestImage } from "./messages/ai";
 import { HumanMessage } from "./messages/human";
 import {
   DO_NOT_RENDER_ID_PREFIX,
   ensureToolCallsHaveResponses,
 } from "@/lib/ensure-tool-responses";
-import { LangGraphLogoSVG } from "../icons/langgraph";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import {
   ArrowDown,
@@ -21,15 +20,12 @@ import {
   PanelRightClose,
   SquarePen,
   XIcon,
-  Plus,
 } from "lucide-react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { Label } from "../ui/label";
-import { Switch } from "../ui/switch";
 import { GitHubSVG } from "../icons/github";
 import {
   Tooltip,
@@ -37,8 +33,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import { useFileUpload } from "@/hooks/use-file-upload";
-import { ContentBlocksPreview } from "./ContentBlocksPreview";
 import {
   useArtifactOpen,
   ArtifactContent,
@@ -93,7 +87,7 @@ function OpenGitHubRepo() {
       <Tooltip>
         <TooltipTrigger asChild>
           <a
-            href="https://github.com/langchain-ai/agent-chat-ui"
+            href="https://github.com/Barneyjm/agent-chat-ui/tree/vivarium"
             target="_blank"
             className="flex items-center justify-center"
           >
@@ -111,6 +105,67 @@ function OpenGitHubRepo() {
   );
 }
 
+function WelcomeScreen({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-red-50 to-green-50 p-8">
+      <div className="flex max-w-4xl flex-col items-center gap-8 rounded-3xl bg-white/80 p-8 shadow-2xl backdrop-blur-sm">
+        {/* Welcome Image */}
+        <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl shadow-lg">
+          <img
+            src="/welcome.png"
+            alt="Welcome to the North Pole"
+            className="h-auto w-full object-cover"
+          />
+        </div>
+
+        {/* Title */}
+        <div className="text-center">
+          <h1 className="mb-2 text-4xl font-bold text-red-700">
+            Welcome to the North Pole Workshop!
+          </h1>
+          <p className="text-lg text-gray-600">
+            Help the elves prepare for Christmas Eve
+          </p>
+        </div>
+
+        {/* Rules */}
+        <div className="w-full rounded-xl bg-gradient-to-r from-red-100 to-green-100 p-6">
+          <h2 className="mb-4 text-center text-xl font-semibold text-gray-800">
+            How to Play
+          </h2>
+          <ul className="space-y-3 text-gray-700">
+            <li className="flex items-start gap-3">
+              <span className="text-xl">🎄</span>
+              <span>Explore the magical North Pole workshop and help the elves with their tasks</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="text-xl">🎁</span>
+              <span>Make choices that will affect your adventure - every decision matters!</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="text-xl">⭐</span>
+              <span>Discover hidden surprises and unlock special holiday moments</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="text-xl">🦌</span>
+              <span>Help Santa prepare for the big night and spread Christmas cheer</span>
+            </li>
+          </ul>
+        </div>
+
+        {/* Start Button */}
+        <Button
+          onClick={onStart}
+          size="lg"
+          className="bg-gradient-to-r from-red-600 to-red-700 px-12 py-6 text-xl font-bold shadow-lg transition-all hover:from-red-700 hover:to-red-800 hover:scale-105"
+        >
+          Begin Your Adventure 🎅
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function Thread() {
   const [artifactContext, setArtifactContext] = useArtifactContext();
   const [artifactOpen, closeArtifact] = useArtifactOpen();
@@ -120,27 +175,18 @@ export function Thread() {
     "chatHistoryOpen",
     parseAsBoolean.withDefault(false),
   );
-  const [hideToolCalls, setHideToolCalls] = useQueryState(
+  const [hideToolCalls] = useQueryState(
     "hideToolCalls",
     parseAsBoolean.withDefault(false),
   );
   const [input, setInput] = useState("");
-  const {
-    contentBlocks,
-    setContentBlocks,
-    handleFileUpload,
-    dropRef,
-    removeBlock,
-    resetBlocks: _resetBlocks,
-    dragOver,
-    handlePaste,
-  } = useFileUpload();
   const [firstTokenReceived, setFirstTokenReceived] = useState(false);
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
 
   const stream = useStreamContext();
   const messages = stream.messages;
   const isLoading = stream.isLoading;
+  const hasEnvironmentImage = !!useLatestImage();
 
   const lastError = useRef<string | undefined>(undefined);
 
@@ -196,17 +242,13 @@ export function Thread() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if ((input.trim().length === 0 && contentBlocks.length === 0) || isLoading)
-      return;
+    if (input.trim().length === 0 || isLoading) return;
     setFirstTokenReceived(false);
 
     const newHumanMessage: Message = {
       id: uuidv4(),
       type: "human",
-      content: [
-        ...(input.trim().length > 0 ? [{ type: "text", text: input }] : []),
-        ...contentBlocks,
-      ] as Message["content"],
+      content: input.trim(),
     };
 
     const toolMessages = ensureToolCallsHaveResponses(stream.messages);
@@ -233,27 +275,64 @@ export function Thread() {
     );
 
     setInput("");
-    setContentBlocks([]);
   };
 
-  const handleRegenerate = (
-    parentCheckpoint: Checkpoint | null | undefined,
-  ) => {
-    // Do this so the loading state is correct
-    prevMessageLength.current = prevMessageLength.current - 1;
-    setFirstTokenReceived(false);
-    stream.submit(undefined, {
-      checkpoint: parentCheckpoint,
-      streamMode: ["values"],
-      streamSubgraphs: true,
-      streamResumable: true,
-    });
-  };
+  const handleRegenerate = useCallback(
+    (parentCheckpoint: Checkpoint | null | undefined) => {
+      // Do this so the loading state is correct
+      prevMessageLength.current = prevMessageLength.current - 1;
+      setFirstTokenReceived(false);
+      stream.submit(undefined, {
+        checkpoint: parentCheckpoint,
+        streamMode: ["values"],
+        streamSubgraphs: true,
+        streamResumable: true,
+      });
+    },
+    [stream],
+  );
 
   const chatStarted = !!threadId || !!messages.length;
   const hasNoAIOrToolMessages = !messages.find(
     (m) => m.type === "ai" || m.type === "tool",
   );
+
+  // Memoize filtered messages to prevent re-filtering on every render
+  const filteredMessages = useMemo(
+    () => messages.filter((m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX)),
+    [messages],
+  );
+
+  // Handle starting a new adventure
+  const handleStartAdventure = useCallback(() => {
+    const startMessage: Message = {
+      id: uuidv4(),
+      type: "human",
+      content: "Start my adventure!",
+    };
+
+    stream.submit(
+      { messages: [startMessage] },
+      {
+        streamMode: ["values"],
+        streamSubgraphs: true,
+        streamResumable: true,
+        optimisticValues: (prev) => ({
+          ...prev,
+          messages: [...(prev.messages ?? []), startMessage],
+        }),
+      },
+    );
+  }, [stream]);
+
+  // Show welcome screen if chat hasn't started
+  if (!chatStarted) {
+    return (
+      <div className="flex h-screen w-full">
+        <WelcomeScreen onStart={handleStartAdventure} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -284,10 +363,36 @@ export function Thread() {
 
       <div
         className={cn(
-          "grid w-full grid-cols-[1fr_0fr] transition-all duration-500",
-          artifactOpen && "grid-cols-[3fr_2fr]",
+          "grid w-full transition-all duration-500",
+          // Dynamic grid columns: [artifact, chat, environment]
+          // Desktop (lg+): show environment panel on right
+          // Mobile: hide environment panel (use hero banner instead)
+          hasEnvironmentImage && artifactOpen && "grid-cols-[2fr_3fr] lg:grid-cols-[2fr_3fr_2fr]",
+          hasEnvironmentImage && !artifactOpen && "grid-cols-[0fr_1fr] lg:grid-cols-[0fr_3fr_2fr]",
+          !hasEnvironmentImage && artifactOpen && "grid-cols-[2fr_3fr]",
+          !hasEnvironmentImage && !artifactOpen && "grid-cols-[0fr_1fr]",
         )}
       >
+        {/* Artifact Panel - Left side */}
+        <div className={cn(
+          "relative flex flex-col border-r overflow-hidden",
+          !artifactOpen && "w-0 border-0",
+        )}>
+          <div className="absolute inset-0 flex min-w-[30vw] flex-col">
+            <div className="grid grid-cols-[1fr_auto] border-b p-4">
+              <ArtifactTitle className="truncate overflow-hidden" />
+              <button
+                onClick={closeArtifact}
+                className="cursor-pointer"
+              >
+                <XIcon className="size-5" />
+              </button>
+            </div>
+            <ArtifactContent className="relative flex-grow" />
+          </div>
+        </div>
+
+        {/* Chat - Center */}
         <motion.div
           className={cn(
             "relative flex min-w-0 flex-1 flex-col overflow-hidden",
@@ -360,12 +465,9 @@ export function Thread() {
                     damping: 30,
                   }}
                 >
-                  <LangGraphLogoSVG
-                    width={32}
-                    height={32}
-                  />
+                  <span className="text-3xl">❄️</span>
                   <span className="text-xl font-semibold tracking-tight">
-                    Agent Chat
+                    North Pole Quest
                   </span>
                 </motion.button>
               </div>
@@ -389,6 +491,12 @@ export function Thread() {
             </div>
           )}
 
+          {/* Scene Banner - below navbar */}
+          {hasEnvironmentImage && <SceneBanner />}
+
+          {/* Game Status Bar - below banner, above chat */}
+          {hasEnvironmentImage && <GameStatusBar />}
+
           <StickToBottom className="relative flex-1 overflow-hidden">
             <StickyToBottomContent
               className={cn(
@@ -396,27 +504,25 @@ export function Thread() {
                 !chatStarted && "mt-[25vh] flex flex-col items-stretch",
                 chatStarted && "grid grid-rows-[1fr_auto]",
               )}
-              contentClassName="pt-8 pb-16 max-w-3xl mx-auto flex flex-col gap-4 w-full"
+              contentClassName="pt-4 pb-16 max-w-3xl mx-auto flex flex-col gap-4 w-full"
               content={
                 <>
-                  {messages
-                    .filter((m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX))
-                    .map((message, index) =>
-                      message.type === "human" ? (
-                        <HumanMessage
-                          key={message.id || `${message.type}-${index}`}
-                          message={message}
-                          isLoading={isLoading}
-                        />
-                      ) : (
-                        <AssistantMessage
-                          key={message.id || `${message.type}-${index}`}
-                          message={message}
-                          isLoading={isLoading}
-                          handleRegenerate={handleRegenerate}
-                        />
-                      ),
-                    )}
+                  {filteredMessages.map((message, index) =>
+                    message.type === "human" ? (
+                      <HumanMessage
+                        key={message.id || `${message.type}-${index}`}
+                        message={message}
+                        isLoading={isLoading}
+                      />
+                    ) : (
+                      <AssistantMessage
+                        key={message.id || `${message.type}-${index}`}
+                        message={message}
+                        isLoading={isLoading}
+                        handleRegenerate={handleRegenerate}
+                      />
+                    ),
+                  )}
                   {/* Special rendering case where there are no AI/tool messages, but there is an interrupt.
                     We need to render it outside of the messages list, since there are no messages to render */}
                   {hasNoAIOrToolMessages && !!stream.interrupt && (
@@ -436,9 +542,9 @@ export function Thread() {
                 <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-white">
                   {!chatStarted && (
                     <div className="flex items-center gap-3">
-                      <LangGraphLogoSVG className="h-8 flex-shrink-0" />
+                      <span className="text-4xl">❄️</span>
                       <h1 className="text-2xl font-semibold tracking-tight">
-                        Agent Chat
+                        North Pole Quest
                       </h1>
                     </div>
                   )}
@@ -446,26 +552,15 @@ export function Thread() {
                   <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 mb-4 -translate-x-1/2" />
 
                   <div
-                    ref={dropRef}
-                    className={cn(
-                      "bg-muted relative z-10 mx-auto mb-8 w-full max-w-3xl rounded-2xl shadow-xs transition-all",
-                      dragOver
-                        ? "border-primary border-2 border-dotted"
-                        : "border border-solid",
-                    )}
+                    className="bg-muted relative z-10 mx-auto mb-8 w-full max-w-3xl rounded-2xl border shadow-xs"
                   >
                     <form
                       onSubmit={handleSubmit}
                       className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2"
                     >
-                      <ContentBlocksPreview
-                        blocks={contentBlocks}
-                        onRemove={removeBlock}
-                      />
                       <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onPaste={handlePaste}
                         onKeyDown={(e) => {
                           if (
                             e.key === "Enter" &&
@@ -483,44 +578,11 @@ export function Thread() {
                         className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
-                      <div className="flex items-center gap-6 p-2 pt-4">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              id="render-tool-calls"
-                              checked={hideToolCalls ?? false}
-                              onCheckedChange={setHideToolCalls}
-                            />
-                            <Label
-                              htmlFor="render-tool-calls"
-                              className="text-sm text-gray-600"
-                            >
-                              Hide Tool Calls
-                            </Label>
-                          </div>
-                        </div>
-                        <Label
-                          htmlFor="file-input"
-                          className="flex cursor-pointer items-center gap-2"
-                        >
-                          <Plus className="size-5 text-gray-600" />
-                          <span className="text-sm text-gray-600">
-                            Upload PDF or Image
-                          </span>
-                        </Label>
-                        <input
-                          id="file-input"
-                          type="file"
-                          onChange={handleFileUpload}
-                          multiple
-                          accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                          className="hidden"
-                        />
+                      <div className="flex items-center justify-end gap-2 p-2 pt-4">
                         {stream.isLoading ? (
                           <Button
                             key="stop"
                             onClick={() => stream.stop()}
-                            className="ml-auto"
                           >
                             <LoaderCircle className="h-4 w-4 animate-spin" />
                             Cancel
@@ -528,11 +590,8 @@ export function Thread() {
                         ) : (
                           <Button
                             type="submit"
-                            className="ml-auto shadow-md transition-all"
-                            disabled={
-                              isLoading ||
-                              (!input.trim() && contentBlocks.length === 0)
-                            }
+                            className="shadow-md transition-all"
+                            disabled={isLoading || !input.trim()}
                           >
                             Send
                           </Button>
@@ -545,19 +604,13 @@ export function Thread() {
             />
           </StickToBottom>
         </motion.div>
-        <div className="relative flex flex-col border-l">
-          <div className="absolute inset-0 flex min-w-[30vw] flex-col">
-            <div className="grid grid-cols-[1fr_auto] border-b p-4">
-              <ArtifactTitle className="truncate overflow-hidden" />
-              <button
-                onClick={closeArtifact}
-                className="cursor-pointer"
-              >
-                <XIcon className="size-5" />
-              </button>
-            </div>
-            <ArtifactContent className="relative flex-grow" />
-          </div>
+
+        {/* Environment Panel - Right side (desktop only) */}
+        <div className={cn(
+          "relative overflow-hidden transition-all duration-500 hidden lg:block",
+          hasEnvironmentImage ? "min-w-[300px]" : "w-0",
+        )}>
+          <EnvironmentPanel />
         </div>
       </div>
     </div>

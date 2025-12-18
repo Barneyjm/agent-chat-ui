@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, ChangeEvent } from "react";
+import { useState, useRef, useEffect, ChangeEvent, useCallback } from "react";
 import { toast } from "sonner";
 import { ContentBlock } from "@langchain/core/messages";
 import { fileToContentBlock } from "@/lib/multimodal-utils";
@@ -24,6 +24,14 @@ export function useFileUpload({
   const [dragOver, setDragOver] = useState(false);
   const dragCounter = useRef(0);
 
+  // Use a ref to track current contentBlocks to avoid re-registering event listeners
+  const contentBlocksRef = useRef<ContentBlock.Multimodal.Data[]>(contentBlocks);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    contentBlocksRef.current = contentBlocks;
+  }, [contentBlocks]);
+
   const isDuplicate = (file: File, blocks: ContentBlock.Multimodal.Data[]) => {
     if (file.type === "application/pdf") {
       return blocks.some(
@@ -44,9 +52,13 @@ export function useFileUpload({
     return false;
   };
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
+
+    // Use ref to get current contentBlocks value
+    const currentBlocks = contentBlocksRef.current;
+
     const fileArray = Array.from(files);
     const validFiles = fileArray.filter((file) =>
       SUPPORTED_FILE_TYPES.includes(file.type),
@@ -55,10 +67,10 @@ export function useFileUpload({
       (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
     );
     const duplicateFiles = validFiles.filter((file) =>
-      isDuplicate(file, contentBlocks),
+      isDuplicate(file, currentBlocks),
     );
     const uniqueFiles = validFiles.filter(
-      (file) => !isDuplicate(file, contentBlocks),
+      (file) => !isDuplicate(file, currentBlocks),
     );
 
     if (invalidFiles.length > 0) {
@@ -77,7 +89,7 @@ export function useFileUpload({
       : [];
     setContentBlocks((prev) => [...prev, ...newBlocks]);
     e.target.value = "";
-  };
+  }, []);
 
   // Drag and drop handlers
   useEffect(() => {
@@ -107,6 +119,9 @@ export function useFileUpload({
 
       if (!e.dataTransfer) return;
 
+      // Use ref to get current contentBlocks value
+      const currentBlocks = contentBlocksRef.current;
+
       const files = Array.from(e.dataTransfer.files);
       const validFiles = files.filter((file) =>
         SUPPORTED_FILE_TYPES.includes(file.type),
@@ -115,10 +130,10 @@ export function useFileUpload({
         (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
       );
       const duplicateFiles = validFiles.filter((file) =>
-        isDuplicate(file, contentBlocks),
+        isDuplicate(file, currentBlocks),
       );
       const uniqueFiles = validFiles.filter(
-        (file) => !isDuplicate(file, contentBlocks),
+        (file) => !isDuplicate(file, currentBlocks),
       );
 
       if (invalidFiles.length > 0) {
@@ -185,7 +200,8 @@ export function useFileUpload({
       window.removeEventListener("dragover", handleWindowDragOver);
       dragCounter.current = 0;
     };
-  }, [contentBlocks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount - contentBlocks accessed via ref
 
   const removeBlock = (idx: number) => {
     setContentBlocks((prev) => prev.filter((_, i) => i !== idx));
@@ -197,65 +213,74 @@ export function useFileUpload({
    * Handle paste event for files (images, PDFs)
    * Can be used as onPaste={handlePaste} on a textarea or input
    */
-  const handlePaste = async (
-    e: React.ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>,
-  ) => {
-    const items = e.clipboardData.items;
-    if (!items) return;
-    const files: File[] = [];
-    for (let i = 0; i < items.length; i += 1) {
-      const item = items[i];
-      if (item.kind === "file") {
-        const file = item.getAsFile();
-        if (file) files.push(file);
+  const handlePaste = useCallback(
+    async (
+      e: React.ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>,
+    ) => {
+      const items = e.clipboardData.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i += 1) {
+        const item = items[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
       }
-    }
-    if (files.length === 0) {
-      return;
-    }
-    e.preventDefault();
-    const validFiles = files.filter((file) =>
-      SUPPORTED_FILE_TYPES.includes(file.type),
-    );
-    const invalidFiles = files.filter(
-      (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
-    );
-    const isDuplicate = (file: File) => {
-      if (file.type === "application/pdf") {
-        return contentBlocks.some(
-          (b) =>
-            b.type === "file" &&
-            b.mimeType === "application/pdf" &&
-            b.metadata?.filename === file.name,
+      if (files.length === 0) {
+        return;
+      }
+      e.preventDefault();
+      const validFiles = files.filter((file) =>
+        SUPPORTED_FILE_TYPES.includes(file.type),
+      );
+      const invalidFiles = files.filter(
+        (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
+      );
+
+      // Use ref to get current contentBlocks value
+      const currentBlocks = contentBlocksRef.current;
+
+      const checkDuplicate = (file: File) => {
+        if (file.type === "application/pdf") {
+          return currentBlocks.some(
+            (b) =>
+              b.type === "file" &&
+              b.mimeType === "application/pdf" &&
+              b.metadata?.filename === file.name,
+          );
+        }
+        if (SUPPORTED_FILE_TYPES.includes(file.type)) {
+          return currentBlocks.some(
+            (b) =>
+              b.type === "image" &&
+              b.metadata?.name === file.name &&
+              b.mimeType === file.type,
+          );
+        }
+        return false;
+      };
+      const duplicateFiles = validFiles.filter(checkDuplicate);
+      const uniqueFiles = validFiles.filter((file) => !checkDuplicate(file));
+      if (invalidFiles.length > 0) {
+        toast.error(
+          "You have pasted an invalid file type. Please paste a JPEG, PNG, GIF, WEBP image or a PDF.",
         );
       }
-      if (SUPPORTED_FILE_TYPES.includes(file.type)) {
-        return contentBlocks.some(
-          (b) =>
-            b.type === "image" &&
-            b.metadata?.name === file.name &&
-            b.mimeType === file.type,
+      if (duplicateFiles.length > 0) {
+        toast.error(
+          `Duplicate file(s) detected: ${duplicateFiles.map((f) => f.name).join(", ")}. Each file can only be uploaded once per message.`,
         );
       }
-      return false;
-    };
-    const duplicateFiles = validFiles.filter(isDuplicate);
-    const uniqueFiles = validFiles.filter((file) => !isDuplicate(file));
-    if (invalidFiles.length > 0) {
-      toast.error(
-        "You have pasted an invalid file type. Please paste a JPEG, PNG, GIF, WEBP image or a PDF.",
-      );
-    }
-    if (duplicateFiles.length > 0) {
-      toast.error(
-        `Duplicate file(s) detected: ${duplicateFiles.map((f) => f.name).join(", ")}. Each file can only be uploaded once per message.`,
-      );
-    }
-    if (uniqueFiles.length > 0) {
-      const newBlocks = await Promise.all(uniqueFiles.map(fileToContentBlock));
-      setContentBlocks((prev) => [...prev, ...newBlocks]);
-    }
-  };
+      if (uniqueFiles.length > 0) {
+        const newBlocks = await Promise.all(
+          uniqueFiles.map(fileToContentBlock),
+        );
+        setContentBlocks((prev) => [...prev, ...newBlocks]);
+      }
+    },
+    [],
+  );
 
   return {
     contentBlocks,
