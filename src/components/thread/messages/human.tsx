@@ -1,6 +1,6 @@
 import { useStreamContext } from "@/providers/Stream";
 import { Message } from "@langchain/langgraph-sdk";
-import { useState } from "react";
+import { useState, memo } from "react";
 import { getContentString } from "../utils";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,7 +34,7 @@ function EditableContent({
   );
 }
 
-export function HumanMessage({
+function HumanMessageImpl({
   message,
   isLoading,
 }: {
@@ -149,3 +149,5 @@ export function HumanMessage({
     </div>
   );
 }
+
+export const HumanMessage = memo(HumanMessageImpl);

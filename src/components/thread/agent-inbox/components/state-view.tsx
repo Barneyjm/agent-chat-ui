@@ -80,6 +80,17 @@ function StateViewRecursive(props: StateViewRecursiveProps) {
     return <p className="font-light text-gray-600">{date}</p>;
   }
 
+  // Check if the value is a string and looks like a base64 image data URL
+  if (typeof props.value === "string" && props.value.startsWith("data:image/")) {
+    return (
+      <img
+        src={props.value}
+        alt="State Image"
+        className="max-w-full h-auto rounded-md"
+      />
+    );
+  }
+
   if (["string", "number"].includes(typeof props.value)) {
     return <MarkdownText>{props.value as string}</MarkdownText>;
   }
