@@ -22,11 +22,13 @@ function DiceRoller({ numDice = 2, reason, onSubmit }: DiceRollerProps) {
   const [diceValues, setDiceValues] = useState<number[]>([]);
   const [isRolling, setIsRolling] = useState(false);
   const [hasRolled, setHasRolled] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   const [finalValues, setFinalValues] = useState<number[]>([]);
 
   const rollDice = useCallback(() => {
     setIsRolling(true);
     setHasRolled(false);
+    setHasSubmitted(false);
 
     // Generate final values upfront
     const finalRoll = Array.from({ length: numDice }, () =>
@@ -53,17 +55,18 @@ function DiceRoller({ numDice = 2, reason, onSubmit }: DiceRollerProps) {
     }, 80);
   }, [numDice]);
 
-  // Auto-submit after roll completes
+  // Auto-submit after roll completes (only once)
   useEffect(() => {
-    if (hasRolled && finalValues.length > 0) {
+    if (hasRolled && finalValues.length > 0 && !hasSubmitted) {
       const total = finalValues.reduce((sum, val) => sum + val, 0);
       // Small delay so user can see the result
       const timer = setTimeout(() => {
+        setHasSubmitted(true);
         onSubmit(finalValues, total);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [hasRolled, finalValues, onSubmit]);
+  }, [hasRolled, finalValues, hasSubmitted, onSubmit]);
 
   const total = diceValues.reduce((sum, val) => sum + val, 0);
 
@@ -131,10 +134,12 @@ function CardDrawer({ numCards = 1, reason, onSubmit }: CardDrawerProps) {
   const [drawnCards, setDrawnCards] = useState<string[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   const drawCards = useCallback(() => {
     setIsDrawing(true);
     setHasDrawn(false);
+    setHasSubmitted(false);
 
     // Animate card flip
     setTimeout(() => {
@@ -150,16 +155,17 @@ function CardDrawer({ numCards = 1, reason, onSubmit }: CardDrawerProps) {
     }, 500);
   }, [numCards]);
 
-  // Auto-submit after draw completes
+  // Auto-submit after draw completes (only once)
   useEffect(() => {
-    if (hasDrawn && drawnCards.length > 0) {
+    if (hasDrawn && drawnCards.length > 0 && !hasSubmitted) {
       // Small delay so user can see the result
       const timer = setTimeout(() => {
+        setHasSubmitted(true);
         onSubmit(drawnCards);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [hasDrawn, drawnCards, onSubmit]);
+  }, [hasDrawn, drawnCards, hasSubmitted, onSubmit]);
 
   const getCardColor = (card: string) => {
     if (card.includes("hearts") || card.includes("diamonds")) {
