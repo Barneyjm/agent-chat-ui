@@ -8,7 +8,7 @@ import { LoadExternalComponent } from "@langchain/langgraph-sdk/react-ui";
 import { cn } from "@/lib/utils";
 import { ToolCalls, ToolResult } from "./tool-calls";
 import { MessageContentComplex } from "@langchain/core/messages";
-import { Fragment, memo, useState, useEffect, useCallback } from "react";
+import { Fragment, memo, useState, useEffect, useCallback, useRef } from "react";
 import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
@@ -494,10 +494,23 @@ export function EnvironmentPanel() {
     ? (interruptValue as GameInputRequest)
     : null;
 
-  // Auto-respond to inventory_state and region_state requests
+  // Track which interrupt we've already handled to prevent double-submission
+  const handledInterruptRef = useRef<string | null>(null);
+  const interruptKey = gameInputRequest ? `${gameInputRequest.request}-${JSON.stringify(interrupt)}` : null;
+
+  // Use refs for state values to avoid effect re-triggering on state changes
+  const stateRef = useRef({ inventory, inventoryCapacity, regionActionTaken, turnsRemaining, giftsFound });
   useEffect(() => {
-    if (gameInputRequest?.request === "inventory_state") {
-      const inventoryData = inventory?.map(item => ({
+    stateRef.current = { inventory, inventoryCapacity, regionActionTaken, turnsRemaining, giftsFound };
+  }, [inventory, inventoryCapacity, regionActionTaken, turnsRemaining, giftsFound]);
+
+  // Auto-respond to inventory_state, region_state, and state_check requests
+  useEffect(() => {
+    if (!gameInputRequest || handledInterruptRef.current === interruptKey) return;
+
+    if (gameInputRequest.request === "inventory_state") {
+      handledInterruptRef.current = interruptKey;
+      const inventoryData = stateRef.current.inventory?.map(item => ({
         name: item.name,
         weight: item.weight,
         description: item.description,
@@ -510,41 +523,38 @@ export function EnvironmentPanel() {
           command: {
             resume: {
               inventory: inventoryData,
-              inventory_capacity: inventoryCapacity ?? 8,
+              inventory_capacity: stateRef.current.inventoryCapacity ?? 8,
             },
           },
         }
       );
-    } else if (gameInputRequest?.request === "region_state") {
+    } else if (gameInputRequest.request === "region_state") {
+      handledInterruptRef.current = interruptKey;
       stream.submit(
         {},
         {
           command: {
             resume: {
-              region_action_taken: regionActionTaken ?? false,
+              region_action_taken: stateRef.current.regionActionTaken ?? false,
             },
           },
         }
       );
-    }
-  }, [gameInputRequest, inventory, inventoryCapacity, regionActionTaken, stream]);
-
-  // Auto-respond to state_check requests
-  useEffect(() => {
-    if (gameInputRequest?.request === "state_check") {
+    } else if (gameInputRequest.request === "state_check") {
+      handledInterruptRef.current = interruptKey;
       stream.submit(
         {},
         {
           command: {
             resume: {
-              turns_remaining: turnsRemaining ?? 24,
-              gifts_found: giftsFound ?? 0,
+              turns_remaining: stateRef.current.turnsRemaining ?? 24,
+              gifts_found: stateRef.current.giftsFound ?? 0,
             },
           },
         }
       );
     }
-  }, [gameInputRequest, turnsRemaining, giftsFound, stream]);
+  }, [gameInputRequest, interruptKey, stream]);
 
   // Handle dice submission - includes all required fields
   const handleDiceSubmit = useCallback(
@@ -666,10 +676,23 @@ export function GameStatusBar() {
     ? (interruptValue as GameInputRequest)
     : null;
 
-  // Auto-respond to inventory_state and region_state requests
+  // Track which interrupt we've already handled to prevent double-submission
+  const handledInterruptRef = useRef<string | null>(null);
+  const interruptKey = gameInputRequest ? `${gameInputRequest.request}-${JSON.stringify(interrupt)}` : null;
+
+  // Use refs for state values to avoid effect re-triggering on state changes
+  const stateRef = useRef({ inventory, inventoryCapacity, regionActionTaken, turnsRemaining, giftsFound });
   useEffect(() => {
-    if (gameInputRequest?.request === "inventory_state") {
-      const inventoryData = inventory?.map(item => ({
+    stateRef.current = { inventory, inventoryCapacity, regionActionTaken, turnsRemaining, giftsFound };
+  }, [inventory, inventoryCapacity, regionActionTaken, turnsRemaining, giftsFound]);
+
+  // Auto-respond to inventory_state, region_state, and state_check requests
+  useEffect(() => {
+    if (!gameInputRequest || handledInterruptRef.current === interruptKey) return;
+
+    if (gameInputRequest.request === "inventory_state") {
+      handledInterruptRef.current = interruptKey;
+      const inventoryData = stateRef.current.inventory?.map(item => ({
         name: item.name,
         weight: item.weight,
         description: item.description,
@@ -682,41 +705,38 @@ export function GameStatusBar() {
           command: {
             resume: {
               inventory: inventoryData,
-              inventory_capacity: inventoryCapacity ?? 8,
+              inventory_capacity: stateRef.current.inventoryCapacity ?? 8,
             },
           },
         }
       );
-    } else if (gameInputRequest?.request === "region_state") {
+    } else if (gameInputRequest.request === "region_state") {
+      handledInterruptRef.current = interruptKey;
       stream.submit(
         {},
         {
           command: {
             resume: {
-              region_action_taken: regionActionTaken ?? false,
+              region_action_taken: stateRef.current.regionActionTaken ?? false,
             },
           },
         }
       );
-    }
-  }, [gameInputRequest, inventory, inventoryCapacity, regionActionTaken, stream]);
-
-  // Auto-respond to state_check requests
-  useEffect(() => {
-    if (gameInputRequest?.request === "state_check") {
+    } else if (gameInputRequest.request === "state_check") {
+      handledInterruptRef.current = interruptKey;
       stream.submit(
         {},
         {
           command: {
             resume: {
-              turns_remaining: turnsRemaining ?? 24,
-              gifts_found: giftsFound ?? 0,
+              turns_remaining: stateRef.current.turnsRemaining ?? 24,
+              gifts_found: stateRef.current.giftsFound ?? 0,
             },
           },
         }
       );
     }
-  }, [gameInputRequest, turnsRemaining, giftsFound, stream]);
+  }, [gameInputRequest, interruptKey, stream]);
 
   // Handle dice submission - includes all required fields
   const handleDiceSubmit = useCallback(
