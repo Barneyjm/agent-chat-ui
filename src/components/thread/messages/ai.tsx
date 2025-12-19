@@ -137,7 +137,7 @@ export function useLatestImage() {
   }
 
   // Fall back to welcome image
-  return "/welcome.png";
+  return "/welcome.webp";
 }
 
 export function StateImage() {
@@ -838,7 +838,7 @@ function AssistantMessageImpl({
   const contentString = getContentString(content);
   const [hideToolCalls] = useQueryState(
     "hideToolCalls",
-    parseAsBoolean.withDefault(false),
+    parseAsBoolean.withDefault(true),
   );
 
   const thread = useStreamContext();

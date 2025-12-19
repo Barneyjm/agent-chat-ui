@@ -16,8 +16,6 @@ import { TooltipIconButton } from "./tooltip-icon-button";
 import {
   ArrowDown,
   LoaderCircle,
-  PanelRightOpen,
-  PanelRightClose,
   SquarePen,
   XIcon,
 } from "lucide-react";
@@ -107,48 +105,43 @@ function OpenGitHubRepo() {
 
 function WelcomeScreen({ onStart }: { onStart: () => void }) {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-red-50 to-green-50 p-8">
-      <div className="flex max-w-4xl flex-col items-center gap-8 rounded-3xl bg-white/80 p-8 shadow-2xl backdrop-blur-sm">
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-red-50 to-green-50 p-4">
+      <div className="flex max-w-4xl flex-col items-center gap-4 rounded-3xl bg-white/80 p-6 shadow-2xl backdrop-blur-sm">
+        {/* Title */}
+        <h1 className="text-3xl font-bold text-red-700 text-center">
+          Welcome to the North Pole Quest!
+        </h1>
+
         {/* Welcome Image */}
         <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl shadow-lg">
           <img
-            src="/welcome.png"
+            src="/welcome.webp"
             alt="Welcome to the North Pole"
             className="h-auto w-full object-cover"
           />
         </div>
 
-        {/* Title */}
-        <div className="text-center">
-          <h1 className="mb-2 text-4xl font-bold text-red-700">
-            Welcome to the North Pole Workshop!
-          </h1>
-          <p className="text-lg text-gray-600">
-            Help the elves prepare for Christmas Eve
-          </p>
-        </div>
-
         {/* Rules */}
-        <div className="w-full rounded-xl bg-gradient-to-r from-red-100 to-green-100 p-6">
-          <h2 className="mb-4 text-center text-xl font-semibold text-gray-800">
+        <div className="w-full rounded-xl bg-gradient-to-r from-red-100 to-green-100 p-4">
+          <h2 className="mb-3 text-center text-lg font-semibold text-gray-800">
             How to Play
           </h2>
-          <ul className="space-y-3 text-gray-700">
-            <li className="flex items-start gap-3">
-              <span className="text-xl">🎄</span>
-              <span>Explore the magical North Pole workshop and help the elves with their tasks</span>
+          <ul className="space-y-2 text-sm text-gray-700">
+            <li className="flex items-start gap-2">
+              <span className="text-lg">🗺️</span>
+              <span>Explore magical regions around the North Pole - each area has unique surprises!</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">🎁</span>
-              <span>Make choices that will affect your adventure - every decision matters!</span>
+            <li className="flex items-start gap-2">
+              <span className="text-lg">🎲</span>
+              <span>Roll dice to overcome challenges - beat the card value to succeed!</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">⭐</span>
-              <span>Discover hidden surprises and unlock special holiday moments</span>
+            <li className="flex items-start gap-2">
+              <span className="text-lg">🃏</span>
+              <span>Draw cards when searching for gifts - high cards mean rare treasures await</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">🦌</span>
-              <span>Help Santa prepare for the big night and spread Christmas cheer</span>
+            <li className="flex items-start gap-2">
+              <span className="text-lg">🎁</span>
+              <span>Find all 6 Magic Gifts before the clock runs out to save Christmas!</span>
             </li>
           </ul>
         </div>
@@ -177,7 +170,7 @@ export function Thread() {
   );
   const [hideToolCalls] = useQueryState(
     "hideToolCalls",
-    parseAsBoolean.withDefault(false),
+    parseAsBoolean.withDefault(true),
   );
   const [input, setInput] = useState("");
   const [firstTokenReceived, setFirstTokenReceived] = useState(false);
@@ -414,63 +407,21 @@ export function Thread() {
           }
         >
           {!chatStarted && (
-            <div className="absolute top-0 left-0 z-10 flex w-full items-center justify-between gap-3 p-2 pl-4">
-              <div>
-                {(!chatHistoryOpen || !isLargeScreen) && (
-                  <Button
-                    className="hover:bg-gray-100"
-                    variant="ghost"
-                    onClick={() => setChatHistoryOpen((p) => !p)}
-                  >
-                    {chatHistoryOpen ? (
-                      <PanelRightOpen className="size-5" />
-                    ) : (
-                      <PanelRightClose className="size-5" />
-                    )}
-                  </Button>
-                )}
-              </div>
-              <div className="absolute top-2 right-4 flex items-center">
-                <OpenGitHubRepo />
-              </div>
+            <div className="absolute top-0 left-0 z-10 flex w-full items-center justify-end gap-3 p-2 pr-4">
+              <OpenGitHubRepo />
             </div>
           )}
           {chatStarted && (
             <div className="relative z-10 flex items-center justify-between gap-3 p-2">
-              <div className="relative flex items-center justify-start gap-2">
-                <div className="absolute left-0 z-10">
-                  {(!chatHistoryOpen || !isLargeScreen) && (
-                    <Button
-                      className="hover:bg-gray-100"
-                      variant="ghost"
-                      onClick={() => setChatHistoryOpen((p) => !p)}
-                    >
-                      {chatHistoryOpen ? (
-                        <PanelRightOpen className="size-5" />
-                      ) : (
-                        <PanelRightClose className="size-5" />
-                      )}
-                    </Button>
-                  )}
-                </div>
-                <motion.button
-                  className="flex cursor-pointer items-center gap-2"
-                  onClick={() => setThreadId(null)}
-                  animate={{
-                    marginLeft: !chatHistoryOpen ? 48 : 0,
-                  }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 30,
-                  }}
-                >
-                  <span className="text-3xl">❄️</span>
-                  <span className="text-xl font-semibold tracking-tight">
-                    North Pole Quest
-                  </span>
-                </motion.button>
-              </div>
+              <button
+                className="flex cursor-pointer items-center gap-2 ml-2"
+                onClick={() => setThreadId(null)}
+              >
+                <span className="text-3xl">❄️</span>
+                <span className="text-xl font-semibold tracking-tight">
+                  North Pole Quest
+                </span>
+              </button>
 
               <div className="flex items-center gap-4">
                 <div className="flex items-center">
