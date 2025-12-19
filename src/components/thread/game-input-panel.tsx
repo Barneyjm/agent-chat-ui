@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDeck, formatCard } from "@/lib/deck";
@@ -22,6 +22,12 @@ function DiceRoller({ numDice = 2, reason, onSubmit }: DiceRollerProps) {
   const [hasRolled, setHasRolled] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [finalValues, setFinalValues] = useState<number[]>([]);
+
+  // Use ref to avoid re-triggering effect when callback reference changes
+  const onSubmitRef = useRef(onSubmit);
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+  }, [onSubmit]);
 
   const rollDice = useCallback(() => {
     setIsRolling(true);
@@ -60,11 +66,11 @@ function DiceRoller({ numDice = 2, reason, onSubmit }: DiceRollerProps) {
       // Small delay so user can see the result
       const timer = setTimeout(() => {
         setHasSubmitted(true);
-        onSubmit(finalValues, total);
+        onSubmitRef.current(finalValues, total);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [hasRolled, finalValues, hasSubmitted, onSubmit]);
+  }, [hasRolled, finalValues, hasSubmitted]);
 
   const total = diceValues.reduce((sum, val) => sum + val, 0);
 
@@ -136,6 +142,12 @@ function CardDrawer({ numCards = 1, reason, onSubmit }: CardDrawerProps) {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [wasReshuffled, setWasReshuffled] = useState(false);
 
+  // Use ref to avoid re-triggering effect when callback reference changes
+  const onSubmitRef = useRef(onSubmit);
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+  }, [onSubmit]);
+
   const drawCards = useCallback(() => {
     setIsDrawing(true);
     setHasDrawn(false);
@@ -159,11 +171,11 @@ function CardDrawer({ numCards = 1, reason, onSubmit }: CardDrawerProps) {
       // Small delay so user can see the result
       const timer = setTimeout(() => {
         setHasSubmitted(true);
-        onSubmit(drawnCards);
+        onSubmitRef.current(drawnCards);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [hasDrawn, drawnCards, hasSubmitted, onSubmit]);
+  }, [hasDrawn, drawnCards, hasSubmitted]);
 
   const getCardColor = (card: string) => {
     if (card.includes("hearts") || card.includes("diamonds")) {
