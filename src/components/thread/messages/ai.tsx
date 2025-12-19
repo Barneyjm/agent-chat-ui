@@ -16,6 +16,10 @@ import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
 import { GameInputPanel, isGameInputInterrupt, type GameInputRequest } from "../game-input-panel";
 
+// Module-level set to track handled interrupts globally (shared between EnvironmentPanel and GameStatusBar)
+// This prevents both components from responding to the same interrupt
+const globalHandledInterrupts = new Set<string>();
+
 // Hook to extract average color from an image
 function useAverageColor(imageSrc: string | null): string | null {
   const [avgColor, setAvgColor] = useState<string | null>(null);
@@ -494,8 +498,7 @@ export function EnvironmentPanel() {
     ? (interruptValue as GameInputRequest)
     : null;
 
-  // Track which interrupt we've already handled to prevent double-submission
-  const handledInterruptRef = useRef<string | null>(null);
+  // Create a unique key for this interrupt to track if it's been handled globally
   const interruptKey = gameInputRequest ? `${gameInputRequest.request}-${JSON.stringify(interrupt)}` : null;
 
   // Use refs for state values to avoid effect re-triggering on state changes
@@ -505,11 +508,12 @@ export function EnvironmentPanel() {
   }, [inventory, inventoryCapacity, regionActionTaken, turnsRemaining, giftsFound]);
 
   // Auto-respond to inventory_state, region_state, and state_check requests
+  // Uses global set to prevent both EnvironmentPanel and GameStatusBar from responding
   useEffect(() => {
-    if (!gameInputRequest || handledInterruptRef.current === interruptKey) return;
+    if (!gameInputRequest || !interruptKey || globalHandledInterrupts.has(interruptKey)) return;
 
     if (gameInputRequest.request === "inventory_state") {
-      handledInterruptRef.current = interruptKey;
+      globalHandledInterrupts.add(interruptKey);
       const inventoryData = stateRef.current.inventory?.map(item => ({
         name: item.name,
         weight: item.weight,
@@ -529,7 +533,7 @@ export function EnvironmentPanel() {
         }
       );
     } else if (gameInputRequest.request === "region_state") {
-      handledInterruptRef.current = interruptKey;
+      globalHandledInterrupts.add(interruptKey);
       stream.submit(
         {},
         {
@@ -541,7 +545,7 @@ export function EnvironmentPanel() {
         }
       );
     } else if (gameInputRequest.request === "state_check") {
-      handledInterruptRef.current = interruptKey;
+      globalHandledInterrupts.add(interruptKey);
       stream.submit(
         {},
         {
@@ -676,8 +680,7 @@ export function GameStatusBar() {
     ? (interruptValue as GameInputRequest)
     : null;
 
-  // Track which interrupt we've already handled to prevent double-submission
-  const handledInterruptRef = useRef<string | null>(null);
+  // Create a unique key for this interrupt to track if it's been handled globally
   const interruptKey = gameInputRequest ? `${gameInputRequest.request}-${JSON.stringify(interrupt)}` : null;
 
   // Use refs for state values to avoid effect re-triggering on state changes
@@ -687,11 +690,12 @@ export function GameStatusBar() {
   }, [inventory, inventoryCapacity, regionActionTaken, turnsRemaining, giftsFound]);
 
   // Auto-respond to inventory_state, region_state, and state_check requests
+  // Uses global set to prevent both EnvironmentPanel and GameStatusBar from responding
   useEffect(() => {
-    if (!gameInputRequest || handledInterruptRef.current === interruptKey) return;
+    if (!gameInputRequest || !interruptKey || globalHandledInterrupts.has(interruptKey)) return;
 
     if (gameInputRequest.request === "inventory_state") {
-      handledInterruptRef.current = interruptKey;
+      globalHandledInterrupts.add(interruptKey);
       const inventoryData = stateRef.current.inventory?.map(item => ({
         name: item.name,
         weight: item.weight,
@@ -711,7 +715,7 @@ export function GameStatusBar() {
         }
       );
     } else if (gameInputRequest.request === "region_state") {
-      handledInterruptRef.current = interruptKey;
+      globalHandledInterrupts.add(interruptKey);
       stream.submit(
         {},
         {
@@ -723,7 +727,7 @@ export function GameStatusBar() {
         }
       );
     } else if (gameInputRequest.request === "state_check") {
-      handledInterruptRef.current = interruptKey;
+      globalHandledInterrupts.add(interruptKey);
       stream.submit(
         {},
         {
