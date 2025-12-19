@@ -6,7 +6,7 @@ import { useStreamContext } from "@/providers/Stream";
 import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
-import { AssistantMessage, AssistantMessageLoading, SceneBanner, GameStatusBar, EnvironmentPanel, useLatestImage } from "./messages/ai";
+import { AssistantMessage, AssistantMessageLoading, SceneBanner, GameStatusBar, EnvironmentPanel, useLatestImage, useGameState } from "./messages/ai";
 import { HumanMessage } from "./messages/human";
 import {
   DO_NOT_RENDER_ID_PREFIX,
@@ -159,6 +159,61 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
   );
 }
 
+function SuggestedActions({
+  onSelect,
+  gameState,
+}: {
+  onSelect: (text: string) => void;
+  gameState: ReturnType<typeof useGameState>;
+}) {
+  const { regionActionTaken, inventory, sleepiness, discoveredRegions } = gameState;
+
+  const suggestions: { text: string; priority?: boolean }[] = [];
+
+  // If action taken, can search for gift - TOP PRIORITY
+  if (regionActionTaken) {
+    suggestions.push({ text: "Search for a gift", priority: true });
+  }
+
+  // Always available
+  suggestions.push({ text: "Look around" });
+  suggestions.push({ text: "Do something fun" });
+
+  // If has inventory items
+  if (inventory && inventory.length > 0) {
+    suggestions.push({ text: "Check my inventory" });
+  }
+
+  // If high sleepiness
+  if (sleepiness !== undefined && sleepiness >= 3) {
+    suggestions.push({ text: "Find a place to rest" });
+  }
+
+  // Travel options
+  if (discoveredRegions && discoveredRegions.length > 1) {
+    suggestions.push({ text: "Travel somewhere else" });
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 px-3 pt-3">
+      {suggestions.slice(0, 4).map(({ text, priority }) => (
+        <button
+          key={text}
+          type="button"
+          onClick={() => onSelect(text)}
+          className={
+            priority
+              ? "rounded-full bg-green-100 px-3 py-1.5 text-sm text-green-700 border border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.5)] hover:bg-green-200 hover:shadow-[0_0_12px_rgba(34,197,94,0.7)] transition-all"
+              : "rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-600 hover:bg-red-100 hover:text-red-700 transition-colors"
+          }
+        >
+          {priority && "🎁 "}{text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Thread() {
   const [artifactContext, setArtifactContext] = useArtifactContext();
   const [artifactOpen, closeArtifact] = useArtifactOpen();
@@ -180,6 +235,7 @@ export function Thread() {
   const messages = stream.messages;
   const isLoading = stream.isLoading;
   const hasEnvironmentImage = !!useLatestImage();
+  const gameState = useGameState();
 
   const lastError = useRef<string | undefined>(undefined);
 
@@ -507,8 +563,14 @@ export function Thread() {
                   >
                     <form
                       onSubmit={handleSubmit}
-                      className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2"
+                      className="mx-auto grid max-w-3xl gap-2"
                     >
+                      {!stream.isLoading && (
+                        <SuggestedActions
+                          onSelect={(text) => setInput(text)}
+                          gameState={gameState}
+                        />
+                      )}
                       <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
@@ -525,7 +587,7 @@ export function Thread() {
                             form?.requestSubmit();
                           }
                         }}
-                        placeholder="Type your message..."
+                        placeholder="What would you like to do? ...or try something creative!"
                         className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
