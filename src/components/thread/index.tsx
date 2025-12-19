@@ -18,8 +18,11 @@ import {
   LoaderCircle,
   SquarePen,
   XIcon,
+  Globe,
 } from "lucide-react";
 import { useQueryState, parseAsBoolean } from "nuqs";
+import { LANGUAGES, Language, LanguageContext, useTranslation, t } from "@/lib/i18n";
+import { DeckContext, loadDeck, saveDeck, drawCardsFromDeck, resetDeck, Card } from "@/lib/deck";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
 import { toast } from "sonner";
@@ -103,13 +106,48 @@ function OpenGitHubRepo() {
   );
 }
 
+function LanguageSelector({
+  language,
+  setLanguage,
+}: {
+  language: Language;
+  setLanguage: (lang: Language) => void;
+}) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="relative flex items-center">
+            <Globe className="absolute left-2 h-4 w-4 text-gray-500 pointer-events-none" />
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as Language)}
+              className="cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-6 text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              {Object.entries(LANGUAGES).map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <p>Change language</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function WelcomeScreen({ onStart }: { onStart: () => void }) {
+  const t = useTranslation();
   return (
     <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-red-50 to-green-50 p-4">
       <div className="flex max-w-4xl flex-col items-center gap-4 rounded-3xl bg-white/80 p-6 shadow-2xl backdrop-blur-sm">
         {/* Title */}
         <h1 className="text-3xl font-bold text-red-700 text-center">
-          Welcome to the North Pole Quest!
+          {t("welcome.title")}
         </h1>
 
         {/* Welcome Image */}
@@ -124,24 +162,24 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
         {/* Rules */}
         <div className="w-full rounded-xl bg-gradient-to-r from-red-100 to-green-100 p-4">
           <h2 className="mb-3 text-center text-lg font-semibold text-gray-800">
-            How to Play
+            {t("welcome.howToPlay")}
           </h2>
           <ul className="space-y-2 text-sm text-gray-700">
             <li className="flex items-start gap-2">
               <span className="text-lg">🗺️</span>
-              <span>Explore magical regions around the North Pole - each area has unique surprises!</span>
+              <span>{t("welcome.rule1")}</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-lg">🎲</span>
-              <span>Roll dice to overcome challenges - beat the card value to succeed!</span>
+              <span>{t("welcome.rule2")}</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-lg">🃏</span>
-              <span>Draw cards when searching for gifts - high cards mean rare treasures await</span>
+              <span>{t("welcome.rule3")}</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-lg">🎁</span>
-              <span>Find all 6 Magic Gifts before the clock runs out to save Christmas!</span>
+              <span>{t("welcome.rule4")}</span>
             </li>
           </ul>
         </div>
@@ -152,7 +190,7 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
           size="lg"
           className="bg-gradient-to-r from-red-600 to-red-700 px-12 py-6 text-xl font-bold shadow-lg transition-all hover:from-red-700 hover:to-red-800 hover:scale-105"
         >
-          Begin Your Adventure 🎅
+          {t("welcome.begin")}
         </Button>
       </div>
     </div>
@@ -166,50 +204,62 @@ function SuggestedActions({
   onSelect: (text: string) => void;
   gameState: ReturnType<typeof useGameState>;
 }) {
-  const { regionActionTaken, inventory, sleepiness, discoveredRegions } = gameState;
+  const t = useTranslation();
+  const { regionActionTaken, inventory, sleepiness, discoveredRegions, searchesRemainingInRegion } = gameState;
 
   const suggestions: { text: string; priority?: boolean }[] = [];
 
-  // If action taken, can search for gift - TOP PRIORITY
-  if (regionActionTaken) {
-    suggestions.push({ text: "Search for a gift", priority: true });
+  // Gift search - only if action taken AND searches remaining in this region
+  const canSearchForGift = regionActionTaken && (searchesRemainingInRegion ?? 2) > 0;
+  const searchesExhausted = regionActionTaken && searchesRemainingInRegion === 0;
+
+  if (canSearchForGift) {
+    suggestions.push({ text: t("action.searchGift"), priority: true });
   }
 
   // Always available
-  suggestions.push({ text: "Look around" });
-  suggestions.push({ text: "Do something fun" });
+  suggestions.push({ text: t("action.lookAround") });
+  suggestions.push({ text: t("action.doSomething") });
 
   // If has inventory items
   if (inventory && inventory.length > 0) {
-    suggestions.push({ text: "Check my inventory" });
+    suggestions.push({ text: t("action.inventory") });
   }
 
   // If high sleepiness
   if (sleepiness !== undefined && sleepiness >= 3) {
-    suggestions.push({ text: "Find a place to rest" });
+    suggestions.push({ text: t("action.rest") });
   }
 
   // Travel options
   if (discoveredRegions && discoveredRegions.length > 1) {
-    suggestions.push({ text: "Travel somewhere else" });
+    suggestions.push({ text: t("action.travel") });
   }
 
   return (
-    <div className="flex flex-wrap gap-2 px-3 pt-3">
-      {suggestions.slice(0, 4).map(({ text, priority }) => (
-        <button
-          key={text}
-          type="button"
-          onClick={() => onSelect(text)}
-          className={
-            priority
-              ? "rounded-full bg-green-100 px-3 py-1.5 text-sm text-green-700 border border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.5)] hover:bg-green-200 hover:shadow-[0_0_12px_rgba(34,197,94,0.7)] transition-all"
-              : "rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-600 hover:bg-red-100 hover:text-red-700 transition-colors"
-          }
-        >
-          {priority && "🎁 "}{text}
-        </button>
-      ))}
+    <div className="flex flex-col gap-2 px-3 pt-3">
+      {/* Show exhausted message if action taken but no searches left */}
+      {searchesExhausted && (
+        <div className="text-xs text-gray-500 italic">
+          {t("action.noSearchesLeft")}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {suggestions.slice(0, 4).map(({ text, priority }) => (
+          <button
+            key={text}
+            type="button"
+            onClick={() => onSelect(text)}
+            className={
+              priority
+                ? "rounded-full bg-green-100 px-3 py-1.5 text-sm text-green-700 border border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.5)] hover:bg-green-200 hover:shadow-[0_0_12px_rgba(34,197,94,0.7)] transition-all"
+                : "rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-600 hover:bg-red-100 hover:text-red-700 transition-colors"
+            }
+          >
+            {priority && "🎁 "}{text}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -227,9 +277,27 @@ export function Thread() {
     "hideToolCalls",
     parseAsBoolean.withDefault(true),
   );
+  const [language, setLanguage] = useQueryState("lang", { defaultValue: "en" }) as [Language, (lang: Language) => void];
+  const [deck, setDeck] = useState<Card[]>(() => loadDeck());
   const [input, setInput] = useState("");
   const [firstTokenReceived, setFirstTokenReceived] = useState(false);
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
+
+  // Deck context for card drawing
+  const deckContextValue = useMemo(() => ({
+    deck,
+    cardsRemaining: deck.length,
+    draw: (count: number) => {
+      const { drawn, remaining, reshuffled } = drawCardsFromDeck(deck, count);
+      setDeck(remaining);
+      saveDeck(remaining);
+      return { cards: drawn, reshuffled };
+    },
+    reset: () => {
+      const newDeck = resetDeck();
+      setDeck(newDeck);
+    },
+  }), [deck]);
 
   const stream = useStreamContext();
   const messages = stream.messages;
@@ -302,8 +370,10 @@ export function Thread() {
 
     const toolMessages = ensureToolCallsHaveResponses(stream.messages);
 
-    const context =
-      Object.keys(artifactContext).length > 0 ? artifactContext : undefined;
+    const context = {
+      ...(Object.keys(artifactContext).length > 0 ? artifactContext : {}),
+      language,
+    };
 
     stream.submit(
       { messages: [...toolMessages, newHumanMessage], context },
@@ -357,33 +427,44 @@ export function Thread() {
     const startMessage: Message = {
       id: uuidv4(),
       type: "human",
-      content: "Start my adventure!",
+      content: t("welcome.startMessage", language),
     };
 
     stream.submit(
-      { messages: [startMessage] },
+      { messages: [startMessage], context: { language } },
       {
         streamMode: ["values"],
         streamSubgraphs: true,
         streamResumable: true,
         optimisticValues: (prev) => ({
           ...prev,
+          context: { language },
           messages: [...(prev.messages ?? []), startMessage],
         }),
       },
     );
-  }, [stream]);
+  }, [stream, language]);
 
   // Show welcome screen if chat hasn't started
   if (!chatStarted) {
     return (
-      <div className="flex h-screen w-full">
-        <WelcomeScreen onStart={handleStartAdventure} />
-      </div>
+      <LanguageContext.Provider value={{ language, setLanguage }}>
+        <DeckContext.Provider value={deckContextValue}>
+          <div className="flex h-screen w-full">
+            {/* Language selector in top right for welcome screen */}
+            <div className="absolute top-4 right-4 z-10">
+              <LanguageSelector language={language} setLanguage={setLanguage} />
+            </div>
+            <WelcomeScreen onStart={handleStartAdventure} />
+          </div>
+        </DeckContext.Provider>
+      </LanguageContext.Provider>
     );
   }
 
   return (
+    <LanguageContext.Provider value={{ language, setLanguage }}>
+    <DeckContext.Provider value={deckContextValue}>
     <div className="flex h-screen w-full overflow-hidden">
       <div className="relative hidden lg:flex">
         <motion.div
@@ -475,11 +556,12 @@ export function Thread() {
               >
                 <span className="text-3xl">❄️</span>
                 <span className="text-xl font-semibold tracking-tight">
-                  North Pole Quest
+                  {t("app.title", language)}
                 </span>
               </button>
 
               <div className="flex items-center gap-4">
+                <LanguageSelector language={language} setLanguage={setLanguage} />
                 <div className="flex items-center">
                   <OpenGitHubRepo />
                 </div>
@@ -551,7 +633,7 @@ export function Thread() {
                     <div className="flex items-center gap-3">
                       <span className="text-4xl">❄️</span>
                       <h1 className="text-2xl font-semibold tracking-tight">
-                        North Pole Quest
+                        {t("app.title", language)}
                       </h1>
                     </div>
                   )}
@@ -587,7 +669,7 @@ export function Thread() {
                             form?.requestSubmit();
                           }
                         }}
-                        placeholder="What would you like to do? ...or try something creative!"
+                        placeholder={t("input.placeholder", language)}
                         className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
@@ -598,7 +680,7 @@ export function Thread() {
                             onClick={() => stream.stop()}
                           >
                             <LoaderCircle className="h-4 w-4 animate-spin" />
-                            Cancel
+                            {t("button.cancel", language)}
                           </Button>
                         ) : (
                           <Button
@@ -606,7 +688,7 @@ export function Thread() {
                             className="shadow-md transition-all"
                             disabled={isLoading || !input.trim()}
                           >
-                            Send
+                            {t("button.send", language)}
                           </Button>
                         )}
                       </div>
@@ -627,5 +709,7 @@ export function Thread() {
         </div>
       </div>
     </div>
+    </DeckContext.Provider>
+    </LanguageContext.Provider>
   );
 }

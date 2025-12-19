@@ -1,10 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useDeck, formatCard } from "@/lib/deck";
 
-// Standard deck of cards
-const SUITS = ["hearts", "diamonds", "clubs", "spades"];
-const VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 const SUIT_SYMBOLS: Record<string, string> = {
   hearts: "♥",
   diamonds: "♦",
@@ -131,29 +129,29 @@ interface CardDrawerProps {
 }
 
 function CardDrawer({ numCards = 1, reason, onSubmit }: CardDrawerProps) {
+  const { draw, cardsRemaining } = useDeck();
   const [drawnCards, setDrawnCards] = useState<string[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [wasReshuffled, setWasReshuffled] = useState(false);
 
   const drawCards = useCallback(() => {
     setIsDrawing(true);
     setHasDrawn(false);
     setHasSubmitted(false);
+    setWasReshuffled(false);
 
     // Animate card flip
     setTimeout(() => {
-      const cards: string[] = [];
-      for (let i = 0; i < numCards; i++) {
-        const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
-        const value = VALUES[Math.floor(Math.random() * VALUES.length)];
-        cards.push(`${value} of ${suit}`);
-      }
-      setDrawnCards(cards);
+      const { cards, reshuffled } = draw(numCards);
+      const formatted = cards.map(formatCard);
+      setDrawnCards(formatted);
+      setWasReshuffled(reshuffled);
       setIsDrawing(false);
       setHasDrawn(true);
     }, 500);
-  }, [numCards]);
+  }, [numCards, draw]);
 
   // Auto-submit after draw completes (only once)
   useEffect(() => {
@@ -192,6 +190,7 @@ function CardDrawer({ numCards = 1, reason, onSubmit }: CardDrawerProps) {
         <div className="flex flex-col">
           <span className="font-semibold text-gray-800">Draw {numCards === 1 ? "a Card" : `${numCards} Cards`}!</span>
           {reason && <span className="text-sm text-gray-500">{reason}</span>}
+          <span className="text-xs text-gray-400">{cardsRemaining} cards remaining in deck</span>
         </div>
       </div>
 
@@ -230,6 +229,11 @@ function CardDrawer({ numCards = 1, reason, onSubmit }: CardDrawerProps) {
       {/* Card Name Display */}
       {hasDrawn && drawnCards.length > 0 && (
         <div className="text-center">
+          {wasReshuffled && (
+            <p className="text-xs text-blue-500 mb-1 flex items-center justify-center gap-1">
+              <span>🔄</span> Deck reshuffled!
+            </p>
+          )}
           <span className="font-semibold text-gray-700">
             {drawnCards.join(", ")}
           </span>

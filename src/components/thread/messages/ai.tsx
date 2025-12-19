@@ -207,6 +207,8 @@ export function useGameState() {
     discoveredRegions: vals?.discovered_regions as string[] | undefined,
     regionActionTaken: vals?.region_action_taken as boolean | undefined,
     turnsRemaining: vals?.turns_remaining as number | undefined,
+    searchesRemainingInRegion: vals?.searches_remaining_in_region as number | undefined,
+    regionSearchCounts: vals?.region_search_counts as Record<string, number> | undefined,
   };
 }
 
@@ -480,7 +482,7 @@ export function EnvironmentPanel() {
   const latestImage = useLatestImage();
   const avgColor = useAverageColor(latestImage);
   const stream = useStreamContext();
-  const { inventory, inventoryCapacity, regionActionTaken, sleepiness, currentLocation, turnsRemaining, giftsFound } = useGameState();
+  const { inventory, inventoryCapacity, regionActionTaken, sleepiness, currentLocation, turnsRemaining, giftsFound, regionSearchCounts } = useGameState();
 
   // Check if there's a game input interrupt
   const interrupt = stream.interrupt;
@@ -595,12 +597,13 @@ export function EnvironmentPanel() {
               gifts_found: giftsFound ?? 0,
               inventory: inventoryData,
               inventory_capacity: inventoryCapacity ?? 8,
+              region_search_counts: regionSearchCounts ?? {},
             },
           },
         }
       );
     },
-    [stream, sleepiness, turnsRemaining, regionActionTaken, currentLocation, giftsFound, inventory, inventoryCapacity]
+    [stream, sleepiness, turnsRemaining, regionActionTaken, currentLocation, giftsFound, inventory, inventoryCapacity, regionSearchCounts]
   );
 
   if (!latestImage) {
@@ -651,7 +654,7 @@ export function EnvironmentPanel() {
 // Game status bar for mobile - sits above chat messages
 export function GameStatusBar() {
   const stream = useStreamContext();
-  const { inventory, inventoryCapacity, regionActionTaken, sleepiness, currentLocation, turnsRemaining, giftsFound } = useGameState();
+  const { inventory, inventoryCapacity, regionActionTaken, sleepiness, currentLocation, turnsRemaining, giftsFound, regionSearchCounts } = useGameState();
 
   // Check if there's a game input interrupt
   const interrupt = stream.interrupt;
@@ -766,12 +769,13 @@ export function GameStatusBar() {
               gifts_found: giftsFound ?? 0,
               inventory: inventoryData,
               inventory_capacity: inventoryCapacity ?? 8,
+              region_search_counts: regionSearchCounts ?? {},
             },
           },
         }
       );
     },
-    [stream, sleepiness, turnsRemaining, regionActionTaken, currentLocation, giftsFound, inventory, inventoryCapacity]
+    [stream, sleepiness, turnsRemaining, regionActionTaken, currentLocation, giftsFound, inventory, inventoryCapacity, regionSearchCounts]
   );
 
   const showGameInput = gameInputRequest &&
