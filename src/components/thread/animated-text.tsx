@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { MarkdownText } from "./markdown-text";
+import { cn } from "@/lib/utils";
 
 /**
  * Configuration for animated text display
@@ -14,7 +15,24 @@ export const ANIMATION_CONFIG = {
   enabled: true,
   /** Minimum characters to reveal per frame to avoid choppy animation */
   minCharsPerFrame: 1,
+  /** Whether to show sparkle effects */
+  sparklesEnabled: true,
+  /** Maximum number of sparkle particles */
+  maxSparkles: 8,
 } as const;
+
+/**
+ * Individual sparkle/snowflake particle
+ */
+interface Sparkle {
+  id: number;
+  x: number;
+  y: number;
+  size: number;
+  duration: number;
+  delay: number;
+  type: "sparkle" | "snow";
+}
 
 /**
  * Hook that animates text reveal at a controlled reading speed.
@@ -155,7 +173,150 @@ export function useAnimatedText(
 }
 
 /**
+ * Hook to generate sparkle particles
+ */
+function useSparkles(isAnimating: boolean, enabled: boolean) {
+  const [sparkles, setSparkles] = useState<Sparkle[]>([]);
+  const idCounterRef = useRef(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!enabled || !isAnimating) {
+      // Clear sparkles when not animating
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      // Fade out existing sparkles
+      const timeout = setTimeout(() => setSparkles([]), 1000);
+      return () => clearTimeout(timeout);
+    }
+
+    // Generate new sparkles periodically
+    intervalRef.current = setInterval(() => {
+      const newSparkle: Sparkle = {
+        id: idCounterRef.current++,
+        x: 85 + Math.random() * 15, // Appear near the right side (where text is being revealed)
+        y: Math.random() * 100,
+        size: 4 + Math.random() * 8,
+        duration: 1000 + Math.random() * 1000,
+        delay: Math.random() * 200,
+        type: Math.random() > 0.5 ? "sparkle" : "snow",
+      };
+
+      setSparkles((prev) => {
+        const updated = [...prev, newSparkle].slice(-ANIMATION_CONFIG.maxSparkles);
+        return updated;
+      });
+
+      // Remove sparkle after animation completes
+      setTimeout(() => {
+        setSparkles((prev) => prev.filter((s) => s.id !== newSparkle.id));
+      }, newSparkle.duration + newSparkle.delay + 100);
+    }, 150);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isAnimating, enabled]);
+
+  return sparkles;
+}
+
+/**
+ * Sparkle particle component
+ */
+function SparkleParticle({ sparkle }: { sparkle: Sparkle }) {
+  const style: React.CSSProperties = {
+    position: "absolute",
+    left: `${sparkle.x}%`,
+    top: `${sparkle.y}%`,
+    width: sparkle.size,
+    height: sparkle.size,
+    pointerEvents: "none",
+    animation: `${sparkle.type === "snow" ? "snowfall" : "sparkle"} ${sparkle.duration}ms ease-out ${sparkle.delay}ms forwards`,
+    opacity: 0,
+  };
+
+  if (sparkle.type === "snow") {
+    return (
+      <span style={style} className="text-white drop-shadow-[0_0_2px_rgba(255,255,255,0.8)]">
+        ❄
+      </span>
+    );
+  }
+
+  return (
+    <span style={style} className="text-yellow-200 drop-shadow-[0_0_4px_rgba(255,215,0,0.8)]">
+      ✦
+    </span>
+  );
+}
+
+/**
+ * CSS keyframes for sparkle animations (injected once)
+ */
+function SparkleStyles() {
+  return (
+    <style jsx global>{`
+      @keyframes sparkle {
+        0% {
+          opacity: 0;
+          transform: scale(0) rotate(0deg);
+        }
+        20% {
+          opacity: 1;
+          transform: scale(1) rotate(45deg);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(0.5) rotate(90deg) translateY(-20px);
+        }
+      }
+
+      @keyframes snowfall {
+        0% {
+          opacity: 0;
+          transform: translateY(0) rotate(0deg) scale(0.5);
+        }
+        20% {
+          opacity: 0.9;
+          transform: translateY(-5px) rotate(45deg) scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(-30px) rotate(180deg) scale(0.3);
+        }
+      }
+
+      @keyframes shimmer {
+        0% {
+          background-position: -200% center;
+        }
+        100% {
+          background-position: 200% center;
+        }
+      }
+
+      .animate-shimmer {
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.1) 50%,
+          transparent 100%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 2s ease-in-out infinite;
+      }
+    `}</style>
+  );
+}
+
+/**
  * AnimatedText component - wraps MarkdownText with smooth text reveal
+ * and magical holiday sparkle effects
  *
  * Usage:
  * ```tsx
@@ -171,23 +332,45 @@ export function AnimatedText({
   isStreaming,
   enabled = ANIMATION_CONFIG.enabled,
   charsPerSecond = ANIMATION_CONFIG.charsPerSecond,
+  sparklesEnabled = ANIMATION_CONFIG.sparklesEnabled,
 }: {
   children: string;
   isStreaming: boolean;
   enabled?: boolean;
   charsPerSecond?: number;
+  sparklesEnabled?: boolean;
 }) {
-  const { displayedText } = useAnimatedText(children, isStreaming, {
+  const { displayedText, isAnimating } = useAnimatedText(children, isStreaming, {
     enabled,
     charsPerSecond,
   });
+
+  const sparkles = useSparkles(isAnimating, sparklesEnabled);
 
   // Don't render empty content
   if (!displayedText) {
     return null;
   }
 
-  return <MarkdownText>{displayedText}</MarkdownText>;
+  return (
+    <div className="relative">
+      <SparkleStyles />
+
+      {/* Sparkle particles */}
+      {sparklesEnabled && sparkles.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {sparkles.map((sparkle) => (
+            <SparkleParticle key={sparkle.id} sparkle={sparkle} />
+          ))}
+        </div>
+      )}
+
+      {/* Text content with optional shimmer effect while animating */}
+      <div className={cn(isAnimating && sparklesEnabled && "animate-shimmer rounded")}>
+        <MarkdownText>{displayedText}</MarkdownText>
+      </div>
+    </div>
+  );
 }
 
 /**
