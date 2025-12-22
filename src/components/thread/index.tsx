@@ -19,6 +19,7 @@ import {
   SquarePen,
   XIcon,
   Globe,
+  Coffee,
 } from "lucide-react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { LANGUAGES, Language, LanguageContext, useTranslation, t } from "@/lib/i18n";
@@ -100,6 +101,27 @@ function OpenGitHubRepo() {
         </TooltipTrigger>
         <TooltipContent side="left">
           <p>Open GitHub repo</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function BuyMeACoffee() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <a
+            href="https://buymeacoffee.com/jbarney"
+            target="_blank"
+            className="flex items-center justify-center text-amber-600 hover:text-amber-700 transition-colors"
+          >
+            <Coffee className="h-6 w-6" />
+          </a>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          <p>Buy me a coffee</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -545,6 +567,7 @@ export function Thread() {
         >
           {!chatStarted && (
             <div className="absolute top-0 left-0 z-10 flex w-full items-center justify-end gap-3 p-2 pr-4">
+              <BuyMeACoffee />
               <OpenGitHubRepo />
             </div>
           )}
@@ -562,7 +585,8 @@ export function Thread() {
 
               <div className="flex items-center gap-4">
                 <LanguageSelector language={language} setLanguage={setLanguage} />
-                <div className="flex items-center">
+                <div className="flex items-center gap-3">
+                  <BuyMeACoffee />
                   <OpenGitHubRepo />
                 </div>
                 <TooltipIconButton
