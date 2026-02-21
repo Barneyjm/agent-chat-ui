@@ -3,7 +3,7 @@ import { useStreamContext } from "@/providers/Stream";
 import { AIMessage, Checkpoint, Message } from "@langchain/langgraph-sdk";
 import { getContentString } from "../utils";
 import { BranchSwitcher, CommandBar } from "./shared";
-import { MarkdownText } from "../markdown-text";
+import { AnimatedText } from "../animated-text";
 import { LoadExternalComponent } from "@langchain/langgraph-sdk/react-ui";
 import { cn } from "@/lib/utils";
 import { ToolCalls, ToolResult } from "./tool-calls";
@@ -916,7 +916,9 @@ function AssistantMessageImpl({
           <>
             {contentString.length > 0 && (
               <div className="py-1">
-                <MarkdownText>{contentString}</MarkdownText>
+                <AnimatedText isStreaming={isLoading && isLastMessage}>
+                  {contentString}
+                </AnimatedText>
               </div>
             )}
 
